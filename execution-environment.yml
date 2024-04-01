@@ -64,6 +64,7 @@ dependencies:
 additional_build_steps:
   append_base:
     - RUN $PYCMD -m pip install -U pip
+    - RUN unlink /usr/bin/python3 && ln -s /usr/bin/python3.12 /usr/bin/python3
   append_final:
     - COPY --from=quay.io/ansible/receptor:v1.4.4 /usr/bin/receptor /usr/bin/receptor
     - RUN mkdir -p /var/run/receptor
