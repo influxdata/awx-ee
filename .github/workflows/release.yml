@@ -32,7 +32,7 @@ jobs:
           ansible-builder create -v3 --output-file=Dockerfile
           docker buildx build \
             --push \
-            --platform=linux/amd64 \
+            --platform=linux/amd64,linux/arm64 \
             --tag=${{ vars.IMAGE_REGISTRY }}:${{ github.event.release.tag_name }} \
             context
 
