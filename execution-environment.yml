@@ -43,6 +43,9 @@ dependencies:
     gcc-c++ [platform:rpm compile]
     make [platform:rpm compile]
     openssl-devel [platform:rpm compile]
+    ncurses [platform:rpm compile]
+    screen [platform:rpm compile]
+    vim  [platform:rpm compile]
   python: |
     git+https://github.com/ansible/ansible-sign
     ncclient
