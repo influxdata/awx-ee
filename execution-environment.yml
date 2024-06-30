@@ -62,6 +62,7 @@ dependencies:
     receptorctl
     netaddr
     ara
+    mitogen
 additional_build_steps:
   append_base:
     - RUN $PYCMD -m pip install -U pip
