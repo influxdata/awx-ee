@@ -36,6 +36,7 @@ dependencies:
     python-unversioned-command [platform:rpm]
     unzip [platform:rpm]
     jq [platform:rpm]
+    vim [platform:rpm]
     openssl [platform:rpm]
     podman-remote [platform:rpm]
     cmake [platform:rpm compile]
