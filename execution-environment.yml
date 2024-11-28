@@ -7,8 +7,6 @@ dependencies:
   ansible_core:
     # A minimum of 2.15 is required to get ansible-inventory --limit option
     package_pip: ansible-core==2.16.7
-  ansible_runner:
-    package_pip: ansible-runner==2.4.0
   python_interpreter:
     package_system: python3.12
     python_path: "/usr/bin/python3.12"
@@ -65,10 +63,15 @@ dependencies:
     ara
     mitogen
 additional_build_steps:
+  prepend_base:
+    - RUN dnf install -y git-core
   append_base:
     - RUN $PYCMD -m pip install -U pip
     - RUN unlink /usr/bin/python3 && ln -s /usr/bin/python3.12 /usr/bin/python3
+    - RUN git clone -b awx_display https://github.com/emoruzzi/ansible-runner.git /tmp/ansible-runner
+    - RUN cd /tmp/ansible-runner && pip install .
   append_final:
     - COPY --from=quay.io/ansible/receptor:v1.4.8 /usr/bin/receptor /usr/bin/receptor
     - RUN mkdir -p /var/run/receptor
     - RUN git lfs install --system
+    - RUN rm -rf /tmp/ansible-runner
