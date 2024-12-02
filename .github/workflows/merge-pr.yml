@@ -1,3 +1,5 @@
+---
+
 name: "Create Tag on Pull Request merge"
 on:
   pull_request:
@@ -5,6 +7,9 @@ on:
       - closed
     branches:
       - main
+    paths:
+      - "./**"
+      - '!**/*.md'
 
 jobs:
   TagMerge:
@@ -73,3 +78,4 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
             "${{ github.event.pull_request._links.comments.href }}" \
             -d '{"body":"Created tag v${{ steps.tagged.outputs.newtag }}"}'
+
