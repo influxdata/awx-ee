@@ -36,11 +36,9 @@ on:
       - "./**"
       - '!**/*.md'
   pull_request:
-    # build and push anytime a pull request is opened or synchronized
     branches:
       - main
       - devel
-      - build-runner   # Remove this line before merging to 'main' or 'devel'
     paths:
       - ".github/workflows/release.yml"
       - "./**"
@@ -50,8 +48,7 @@ on:
     types:
       - created
   schedule:
-    # build and push nightly
-    - cron: "13 4 * * *"
+    - cron: "13 4 * * 1"
 
 jobs:
   ci:
@@ -119,14 +116,32 @@ jobs:
             echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
           fi
 
-      - name: Build and push image
+      - name: Setup docker buildx
         run: |
           docker buildx create --name awx-ee-buildx
           docker buildx use awx-ee-buildx
           ansible-builder create -v3 --output-file=Dockerfile
+
+      - name: Build and push image linux/amd64
+        run: |
           docker buildx build \
+            --platform=linux/amd64 \
+            --tag=${{ vars.IMAGE_REGISTRY_URL || 'ghcr.io' }}/${{ vars.IMAGE_REPOSITORY || github.repository }}:${{ env.IMAGE_TAG }}-amd64 \
             --push \
-            --platform=linux/amd64,linux/arm64 \
-            --tag=${{ vars.IMAGE_REGISTRY_URL || 'ghcr.io' }}/${{ vars.IMAGE_REPOSITORY || github.repository }}:${{ env.IMAGE_TAG }} \
             context
 
+      # - name: Build and push image linux/arm64
+      #   run: |
+      #     docker buildx build \
+      #       --platform=linux/arm64 \
+      #       --tag=${{ vars.IMAGE_REGISTRY_URL || 'ghcr.io' }}/${{ vars.IMAGE_REPOSITORY || github.repository }}:${{ env.IMAGE_TAG }}-arm64 \
+      #       --push \
+      #       context
+
+      # - name: Create and push multi-arch manifest
+      #   run: |
+      #     docker manifest create \
+      #       ${{ vars.IMAGE_REGISTRY_URL || 'ghcr.io' }}/${{ vars.IMAGE_REPOSITORY || github.repository }}:${{ env.IMAGE_TAG }} \
+      #       --amend ${{ vars.IMAGE_REGISTRY_URL || 'ghcr.io' }}/${{ vars.IMAGE_REPOSITORY || github.repository }}:${{ env.IMAGE_TAG }}-amd64 \
+      #       --amend ${{ vars.IMAGE_REGISTRY_URL || 'ghcr.io' }}/${{ vars.IMAGE_REPOSITORY || github.repository }}:${{ env.IMAGE_TAG }}-arm64
+      #     docker manifest push ${{ vars.IMAGE_REGISTRY_URL || 'ghcr.io' }}/${{ vars.IMAGE_REPOSITORY || github.repository }}:${{ env.IMAGE_TAG }}
