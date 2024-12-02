@@ -40,6 +40,7 @@ on:
     branches:
       - main
       - devel
+      - build-runner   # Remove this line before merging to 'main' or 'devel'
     paths:
       - ".github/workflows/release.yml"
       - "./**"
