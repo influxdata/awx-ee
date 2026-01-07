@@ -8,7 +8,7 @@ dependencies:
     # A minimum of 2.15 is required to get ansible-inventory --limit option
     package_pip: ansible-core==2.16.14
   ansible_runner:
-    package_pip: ansible-runner>=2.4.0
+    package_pip: ansible-runner>=2.4.2
   python_interpreter:
     package_system: python3.12
     python_path: "/usr/bin/python3.12"
@@ -67,8 +67,8 @@ dependencies:
 additional_build_steps:
   append_base:
     - RUN $PYCMD -m pip install -U pip
-    - RUN unlink /usr/bin/python3 && ln -s /usr/bin/python3.12 /usr/bin/python3
+    - RUN alternatives --install /usr/bin/python python /usr/bin/python3.12 312
   append_final:
-    - COPY --from=quay.io/ansible/receptor:v1.5.2 /usr/bin/receptor /usr/bin/receptor
+    - COPY --from=quay.io/ansible/receptor:v1.6.1 /usr/bin/receptor /usr/bin/receptor
     - RUN mkdir -p /var/run/receptor
     - RUN git lfs install --system

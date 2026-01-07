@@ -49,8 +49,15 @@ on:
     types:
       - created
   schedule:
-    # build and push nightly
-    - cron: "13 4 * * *"
+    # build and push weekly
+    - cron: "13 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      push_image:
+        description: 'Push image to registry after build'
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   ci:
@@ -59,9 +66,9 @@ jobs:
     strategy:
       fail-fast: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -77,12 +84,14 @@ jobs:
   release:
     runs-on: ubuntu-latest
     name: Release
+    # Run if push_image input is true, or if the input is not provided (triggers other than workflow_dispatch)
+    if: ${{ github.event.inputs.push_image == 'true' || github.event.inputs.push_image == null || github.event.inputs.push_image == '' }}
     strategy:
       fail-fast: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
