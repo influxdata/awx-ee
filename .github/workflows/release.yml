@@ -1,18 +1,27 @@
 ---
-# This workflow will build and push an AWX EE image to a container registry based upon the provided configuration
+# This workflow builds an AWX EE image and optionally pushes it to a container registry.
 #
-# Image tags will be generated based upon the event that triggered the workflow:
-#   - push event:
+# Jobs:
+#   ci: Runs on all triggers. Builds the image with Podman to validate the build.
+#   release: Pushes the image to the registry. Only runs on:
+#     - release: when a GitHub release is created
+#     - schedule: weekly nightly builds
+#     - workflow_dispatch: when manually triggered with push_image=true
+#
+# To push an image for a specific branch:
+#   1. Go to Actions > "Build & Release" workflow
+#   2. Click "Run workflow"
+#   3. Select the target branch
+#   4. Check "Push image to registry after build"
+#   5. Click "Run workflow"
+#
+# Image tags:
+#   - release event: <tag_name> (e.g., v1.0.0)
+#   - schedule event: nightly
+#   - workflow_dispatch:
 #     - main branch: latest
 #     - devel branch: devel
-#     - all other branches: <branch name>-latest
-#       Branches must be added to the on.push.branches array above to trigger
-#   - pull_request event: DEV-PR-<pull_request_number>
-#     Branches must be added to the on.pull_request.branches array above to trigger
-#   - release event: <tag_name>
-#   - schedule event: nightly
-#     This will be the same configuration as the 'latest' tag, but may contain updated packages, etc. from upstream
-#   - all other events: <first 7 chars of commit sha>
+#     - other branches: <branch_name>-latest
 #
 # Variables:
 #   IMAGE_REGISTRY_URL: The container registry to push the image to (default: ghcr.io)
@@ -27,29 +36,27 @@ name: Build & Release
 
 on:
   push:
-    # build and push anytime commits are merged to specified branches
+    # run CI build when commits are merged to specified branches
     branches:
       - main
       - devel
     paths:
-      - ".github/workflows/release.yml"
-      - "./**"
+      - "**"
       - '!**/*.md'
   pull_request:
-    # build and push anytime a pull request is opened or synchronized
+    # run CI build when a pull request is opened or synchronized
     branches:
       - main
       - devel
     paths:
-      - ".github/workflows/release.yml"
-      - "./**"
+      - "**"
       - '!**/*.md'
   release:
-    # build and push anytime a release is created
+    # build and push when a release is created
     types:
       - created
   schedule:
-    # build and push weekly
+    # build and push nightly image weekly
     - cron: "13 4 * * 1"
   workflow_dispatch:
     inputs:
@@ -84,8 +91,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     name: Release
-    # Run if push_image input is true, or if the input is not provided (triggers other than workflow_dispatch)
-    if: ${{ github.event.inputs.push_image == 'true' || github.event.inputs.push_image == null || github.event.inputs.push_image == '' }}
+    # Only push images for releases, scheduled builds, or manual workflow_dispatch with push_image=true
+    if: ${{ github.event_name == 'release' || github.event_name == 'schedule' || github.event.inputs.push_image == 'true' }}
     strategy:
       fail-fast: true
     steps:
@@ -109,22 +116,16 @@ jobs:
 
       - name: Generate image tag
         run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            if [[ "${{ github.ref_name }}" == "main" ]]; then
-              echo "IMAGE_TAG=latest" >> $GITHUB_ENV
-            elif [[ "${{ github.ref_name }}" == "devel" ]]; then
-              echo "IMAGE_TAG=devel" >> $GITHUB_ENV
-            else
-              echo "IMAGE_TAG=${{ github.ref_name }}-latest" >> $GITHUB_ENV
-            fi
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "IMAGE_TAG=DEV-PR-${{ github.event.pull_request.number }}" >> $GITHUB_ENV
-          elif [[ "${{ github.event_name }}" == "release" ]]; then
+          if [[ "${{ github.event_name }}" == "release" ]]; then
             echo "IMAGE_TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
           elif [[ "${{ github.event_name }}" == "schedule" ]]; then
             echo "IMAGE_TAG=nightly" >> $GITHUB_ENV
+          elif [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+          elif [[ "${{ github.ref_name }}" == "devel" ]]; then
+            echo "IMAGE_TAG=devel" >> $GITHUB_ENV
           else
-            echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+            echo "IMAGE_TAG=${{ github.ref_name }}-latest" >> $GITHUB_ENV
           fi
 
       - name: Build and push image
