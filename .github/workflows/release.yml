@@ -21,7 +21,9 @@
 #   - workflow_dispatch:
 #     - main branch: latest
 #     - devel branch: devel
-#     - other branches: <branch_name>-latest
+#     - branches with open PR: DEV-PR-<number>
+#     - other branches: DEV-<short-sha>
+#   - pull_request event: DEV-PR-<number>
 #
 # Variables:
 #   IMAGE_REGISTRY_URL: The container registry to push the image to (default: ghcr.io)
@@ -124,23 +126,37 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate image tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [[ "${{ github.event_name }}" == "release" ]]; then
             IMAGE_TAG="${{ github.event.release.tag_name }}"
           elif [[ "${{ github.event_name }}" == "schedule" ]]; then
             IMAGE_TAG="nightly"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            IMAGE_TAG="DEV-PR-${{ github.event.pull_request.number }}"
           elif [[ "${{ github.ref_name }}" == "main" ]]; then
             IMAGE_TAG="latest"
           elif [[ "${{ github.ref_name }}" == "devel" ]]; then
             IMAGE_TAG="devel"
           else
-            IMAGE_TAG="${{ github.ref_name }}-latest"
+            # For workflow_dispatch on feature branches, try to find associated PR
+            PR_NUMBER=$(gh pr list --head "${{ github.ref_name }}" --state open --json number --jq '.[0].number' 2>/dev/null || true)
+            if [[ -n "$PR_NUMBER" ]]; then
+              IMAGE_TAG="DEV-PR-${PR_NUMBER}"
+            else
+              # Fallback: use short commit hash (first 7 chars)
+              SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+              IMAGE_TAG="DEV-${SHORT_SHA}"
+            fi
           fi
           echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+          echo "::notice::Image tag: ${{ vars.IMAGE_REGISTRY_URL || 'ghcr.io' }}/${{ vars.IMAGE_REPOSITORY || github.repository }}:${IMAGE_TAG}"
 
           # Add ghcr.io tag if dual-push is enabled
           if [[ "${{ vars.ALWAYS_PUSH_GHCR }}" == "true" ]]; then
             echo "GHCR_TAG_ARG=--tag=ghcr.io/${{ github.repository }}:${IMAGE_TAG}" >> $GITHUB_ENV
+            echo "::notice::Also pushing to ghcr.io/${{ github.repository }}:${IMAGE_TAG}"
           else
             echo "GHCR_TAG_ARG=" >> $GITHUB_ENV
           fi
