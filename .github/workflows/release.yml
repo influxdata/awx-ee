@@ -27,6 +27,7 @@
 #   IMAGE_REGISTRY_URL: The container registry to push the image to (default: ghcr.io)
 #   IMAGE_REPOSITORY: The repository to push the image to (default: github.repository)
 #   IMAGE_REGISTRY_USER: The username to authenticate with the container registry (default: github.actor)
+#   ALWAYS_PUSH_GHCR: Set to 'true' to also push images to ghcr.io (default: false)
 #
 # Secrets:
 #   IMAGE_REGISTRY_TOKEN: The token to authenticate with the container registry (default: secrets.GITHUB_TOKEN)
@@ -114,18 +115,34 @@ jobs:
           username: ${{ vars.IMAGE_REGISTRY_USER || github.actor }}
           password: ${{ secrets.IMAGE_REGISTRY_TOKEN || secrets.GITHUB_TOKEN }}
 
+      - name: Login to GitHub Container Registry
+        if: ${{ vars.ALWAYS_PUSH_GHCR == 'true' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Generate image tag
         run: |
           if [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "IMAGE_TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+            IMAGE_TAG="${{ github.event.release.tag_name }}"
           elif [[ "${{ github.event_name }}" == "schedule" ]]; then
-            echo "IMAGE_TAG=nightly" >> $GITHUB_ENV
+            IMAGE_TAG="nightly"
           elif [[ "${{ github.ref_name }}" == "main" ]]; then
-            echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+            IMAGE_TAG="latest"
           elif [[ "${{ github.ref_name }}" == "devel" ]]; then
-            echo "IMAGE_TAG=devel" >> $GITHUB_ENV
+            IMAGE_TAG="devel"
           else
-            echo "IMAGE_TAG=${{ github.ref_name }}-latest" >> $GITHUB_ENV
+            IMAGE_TAG="${{ github.ref_name }}-latest"
+          fi
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+
+          # Add ghcr.io tag if dual-push is enabled
+          if [[ "${{ vars.ALWAYS_PUSH_GHCR }}" == "true" ]]; then
+            echo "GHCR_TAG_ARG=--tag=ghcr.io/${{ github.repository }}:${IMAGE_TAG}" >> $GITHUB_ENV
+          else
+            echo "GHCR_TAG_ARG=" >> $GITHUB_ENV
           fi
 
       - name: Build and push image
@@ -136,6 +153,6 @@ jobs:
           docker buildx build \
             --push \
             --platform=linux/amd64,linux/arm64 \
-            --tag=${{ vars.IMAGE_REGISTRY_URL || 'ghcr.io' }}/${{ vars.IMAGE_REPOSITORY || github.repository }}:${{ env.IMAGE_TAG }} \
+            --tag=${{ vars.IMAGE_REGISTRY_URL || 'ghcr.io' }}/${{ vars.IMAGE_REPOSITORY || github.repository }}:${{ env.IMAGE_TAG }} ${{ env.GHCR_TAG_ARG }} \
             context
 
