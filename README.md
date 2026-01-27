@@ -3,15 +3,32 @@
 An Execution Environment for AWX.
 
 Main features:
-- Centos Stream 9
+- CentOS Stream 9
 - Python 3.12
-  - ara
-  - boto3
-  - mitogen
-  - redis
-  - toml
 - Ansible 2.16
-- Minimal base collections installed
+
+### Collections
+- `amazon.aws`
+- `ansible.posix`
+- `ansible.receptor`
+- `ansible.utils`
+- `awx.awx`
+- `community.aws`
+- `community.docker`
+- `community.general`
+- `community.grafana`
+
+### Python packages
+- ara
+- boto3
+- mitogen
+- netaddr
+- paramiko
+- pykerberos
+- pywinrm
+- receptorctl
+- redis
+- toml
 
 View the full configuration in the [execution-environment.yaml](execution-environment.yaml) file.
 
