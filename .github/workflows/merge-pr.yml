@@ -52,8 +52,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Get latest tag, default to 0.0.0 if none exist
-          CURRENT=$(gh api repos/${{ github.repository }}/tags --jq '.[0].name // "v0.0.0"' | sed 's/^v//')
+          # Find highest semver tag (numeric sort, ignoring pre-release suffixes like -rc0)
+          CURRENT=$(gh api repos/${{ github.repository }}/tags --paginate --jq '.[].name' \
+            | sed -n 's/^v\?\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/p' \
+            | sort -t. -k1,1n -k2,2n -k3,3n \
+            | tail -1)
+          CURRENT="${CURRENT:-0.0.0}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 
           case "${{ steps.bump.outputs.type }}" in
