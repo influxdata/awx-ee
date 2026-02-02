@@ -1,12 +1,24 @@
 name: "Create Tag on Pull Request merge"
+
+# Configurable version bump labels
+# Change these to match your preferred label names
+env:
+  LABEL_MAJOR: "release/major"
+  LABEL_MINOR: "release/minor"
+  LABEL_PATCH: "release/patch"
+
 on:
   pull_request:
     types:
+      - opened
+      - synchronize
+      - labeled
+      - unlabeled
       - closed
     branches:
       - main
     paths:
-      - "./**"
+      - "**"
       - '!**/*.md'
 
 jobs:
@@ -18,61 +30,94 @@ jobs:
       contents: write
 
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
     steps:
-      - name: Generate Tag
+      - name: Determine version bump type
+        id: bump
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          if echo "$LABELS" | grep -q "\"$LABEL_MAJOR\""; then
+            echo "type=major" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -q "\"$LABEL_MINOR\""; then
+            echo "type=minor" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -q "\"$LABEL_PATCH\""; then
+            echo "type=patch" >> $GITHUB_OUTPUT
+          else
+            echo "type=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Calculate new version
         id: tagged
+        if: steps.bump.outputs.type != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo $(curl \
-            --silent \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
-            "https://api.github.com/repos/${{ github.repository }}/tags" \
-            | jq -r '.[].name |= sub("-rc0|v"; "";"g") | select(length > 1) | max_by(.name) | .name' \
-            | awk '
-            function inc(s){
-              split(s, a, ".")
-              a[3]++
-              if (a[3]>=10){
-                a[2]++;a[3]=0
-              }
-              if (a[2]>=10){
-                a[1]++;a[2]=0
-              }
-              return a[1]"."a[2]"."a[3]
+          # Find highest semver tag (numeric sort, ignoring pre-release suffixes like -rc0)
+          CURRENT=$(gh api repos/${{ github.repository }}/tags --paginate --jq '.[].name' \
+            | sed -n 's/^v\?\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/p' \
+            | sort -t. -k1,1n -k2,2n -k3,3n \
+            | tail -1)
+          CURRENT="${CURRENT:-0.0.0}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 
-            }
-            { print "newtag="inc($1) }') >> $GITHUB_OUTPUT
+          case "${{ steps.bump.outputs.type }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
 
-      - name: Create new tag in github
-        id: createtag
+          NEWTAG="${MAJOR}.${MINOR}.${PATCH}"
+          echo "newtag=${NEWTAG}" >> $GITHUB_OUTPUT
+          echo "current=${CURRENT}" >> $GITHUB_OUTPUT
+
+      - name: Job summary (dry-run)
+        if: github.event.pull_request.merged != true
         run: |
-          echo tag_sha=$(curl \
-            --silent \
-            -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
-            "https://api.github.com/repos/${{ github.repository }}/git/tags" \
-            -d '{"tag":"v${{ steps.tagged.outputs.newtag }}","message":"New release from github actions","object":"${{ github.sha }}","type":"commit"}' \
-            | jq -r '.sha') >> $GITHUB_OUTPUT
+          if [[ -n "${{ steps.bump.outputs.type }}" ]]; then
+            echo "## Release Preview" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "When this PR is merged, a **${{ steps.bump.outputs.type }}** release will be created:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- Current version: \`v${{ steps.tagged.outputs.current }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- New version: \`v${{ steps.tagged.outputs.newtag }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## No Release Scheduled" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This PR does not have a version label. No release will be created on merge." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "To create a release when this PR is merged, add one of these labels:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Label | Description |" >> $GITHUB_STEP_SUMMARY
+            echo "|-------|-------------|" >> $GITHUB_STEP_SUMMARY
+            echo "| \`$LABEL_PATCH\` | Bug fixes, backwards compatible |" >> $GITHUB_STEP_SUMMARY
+            echo "| \`$LABEL_MINOR\` | New features, backwards compatible |" >> $GITHUB_STEP_SUMMARY
+            echo "| \`$LABEL_MAJOR\` | Breaking changes |" >> $GITHUB_STEP_SUMMARY
+          fi
 
-      - name: Create ref tag in github
-        id: createreftag
+      - name: Create tag
+        if: github.event.pull_request.merged == true && steps.bump.outputs.type != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          curl \
-            --silent \
-            -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
-            "https://api.github.com/repos/${{ github.repository }}/git/refs" \
-            -d '{"ref": "refs/tags/v${{ steps.tagged.outputs.newtag }}",  "sha": "${{ steps.createtag.outputs.tag_sha}}" }'
+          gh api repos/${{ github.repository }}/git/refs \
+            --method POST \
+            -f ref="refs/tags/v${{ steps.tagged.outputs.newtag }}" \
+            -f sha="${{ github.sha }}"
 
-      - name: Add PR comment with new tag info
+          echo "::notice::Created tag v${{ steps.tagged.outputs.newtag }}"
+
+      - name: Job summary (released)
+        if: github.event.pull_request.merged == true && steps.bump.outputs.type != ''
         run: |
-          curl \
-            --silent \
-            -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
-            "${{ github.event.pull_request._links.comments.href }}" \
-            -d '{"body":"Created tag v${{ steps.tagged.outputs.newtag }}"}'
+          echo "## Release Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Created tag \`v${{ steps.tagged.outputs.newtag }}\` (${{ steps.bump.outputs.type }} bump from v${{ steps.tagged.outputs.current }})" >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment on PR
+        if: github.event.pull_request.merged == true && steps.bump.outputs.type != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --body "Created tag v${{ steps.tagged.outputs.newtag }}"

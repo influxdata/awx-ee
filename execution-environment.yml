@@ -16,11 +16,18 @@ dependencies:
     ---
     collections:
       - name: awx.awx
+        version: 24.5.0
       - name: amazon.aws
+        version: ">=9.3.0"
       - name: ansible.posix
+      - name: ansible.receptor
+        version: ">=2.0.8"
+      - name: ansible.utils
+      - name: community.aws
       - name: community.general
       - name: community.docker
-      - name: community.aws
+        version: ">=3.10.2"
+      - name: community.grafana
   system: |
     git-core [platform:rpm]
     python3.12-devel [platform:rpm compile]
@@ -69,6 +76,6 @@ additional_build_steps:
     - RUN $PYCMD -m pip install -U pip
     - RUN alternatives --install /usr/bin/python python /usr/bin/python3.12 312
   append_final:
-    - COPY --from=quay.io/ansible/receptor:v1.6.1 /usr/bin/receptor /usr/bin/receptor
+    - COPY --from=quay.io/ansible/receptor:v1.6.3 /usr/bin/receptor /usr/bin/receptor
     - RUN mkdir -p /var/run/receptor
     - RUN git lfs install --system
