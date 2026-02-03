@@ -101,7 +101,13 @@ jobs:
     name: Release
     # Push images for: releases, scheduled builds, manual workflow_dispatch with push_image=true,
     # or pushes to main/devel branches
-    if: ${{ github.event_name == 'release' || github.event_name == 'schedule' || github.event.inputs.push_image == 'true' || (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'devel')) }}
+    if: >-
+      ${{
+        github.event_name == 'release'
+        || github.event_name == 'schedule'
+        || github.event.inputs.push_image == 'true'
+        || (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'devel'))
+      }}
     strategy:
       fail-fast: true
     steps:
