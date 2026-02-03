@@ -6,7 +6,7 @@ images:
 dependencies:
   ansible_core:
     # A minimum of 2.15 is required to get ansible-inventory --limit option
-    package_pip: ansible-core==2.16.14
+    package_pip: ansible-core==2.20.2
   ansible_runner:
     package_pip: ansible-runner>=2.4.2
   python_interpreter:

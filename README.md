@@ -5,7 +5,7 @@ An Execution Environment for AWX.
 Main features:
 - CentOS Stream 9
 - Python 3.12
-- Ansible 2.16
+- Ansible 2.20
 
 ### Collections
 - `amazon.aws`
