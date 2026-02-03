@@ -7,6 +7,7 @@
 #     - release: when a GitHub release is created
 #     - schedule: weekly nightly builds
 #     - workflow_dispatch: when manually triggered with push_image=true
+#     - push: when commits are pushed to main or devel branches
 #
 # To push an image for a specific branch:
 #   1. Go to Actions > "Build & Release" workflow
@@ -18,6 +19,9 @@
 # Image tags:
 #   - release event: <tag_name> (e.g., v1.0.0)
 #   - schedule event: nightly
+#   - push event:
+#     - main branch: latest
+#     - devel branch: devel
 #   - workflow_dispatch:
 #     - main branch: latest
 #     - devel branch: devel
@@ -40,6 +44,7 @@ name: Build & Release
 on:
   push:
     # run CI build when commits are merged to specified branches
+    # automatically push images: main -> latest tag, devel -> devel tag
     branches:
       - main
       - devel
@@ -94,8 +99,15 @@ jobs:
   release:
     runs-on: ubuntu-latest
     name: Release
-    # Only push images for releases, scheduled builds, or manual workflow_dispatch with push_image=true
-    if: ${{ github.event_name == 'release' || github.event_name == 'schedule' || github.event.inputs.push_image == 'true' }}
+    # Push images for: releases, scheduled builds, manual workflow_dispatch with push_image=true,
+    # or pushes to main/devel branches
+    if: >-
+      ${{
+        github.event_name == 'release'
+        || github.event_name == 'schedule'
+        || github.event.inputs.push_image == 'true'
+        || (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'devel'))
+      }}
     strategy:
       fail-fast: true
     steps:
