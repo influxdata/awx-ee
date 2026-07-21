@@ -6,6 +6,10 @@ env:
   LABEL_MAJOR: "release/major"
   LABEL_MINOR: "release/minor"
   LABEL_PATCH: "release/patch"
+  # Frozen fork-point version for the `legacy` (ansible-core 2.16) line.
+  # Legacy releases are maintenance-only and tag as v${LEGACY_BASE}-legacy.N.
+  # Bump this only when a new legacy line is cut from a later main release.
+  LEGACY_BASE: "1.2.0"
 
 on:
   pull_request:
@@ -17,6 +21,7 @@ on:
       - closed
     branches:
       - main
+      - legacy
     paths:
       - "**"
       - '!**/*.md'
@@ -52,21 +57,35 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Find highest semver tag (numeric sort, ignoring pre-release suffixes like -rc0)
-          CURRENT=$(gh api repos/${{ github.repository }}/tags --paginate --jq '.[].name' \
-            | sed -n 's/^v\?\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/p' \
-            | sort -t. -k1,1n -k2,2n -k3,3n \
-            | tail -1)
-          CURRENT="${CURRENT:-0.0.0}"
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          if [[ "${{ github.base_ref }}" == "legacy" ]]; then
+            # Legacy line: maintenance-only. Any release/* label increments the
+            # -legacy.N counter off the frozen LEGACY_BASE; the bump type is ignored.
+            N=$(gh api repos/${{ github.repository }}/tags --paginate --jq '.[].name' \
+              | sed -n "s/^v\?${LEGACY_BASE}-legacy\.\([0-9]\+\)$/\1/p" \
+              | sort -n \
+              | tail -1)
+            N=$(( ${N:-0} + 1 ))
+            NEWTAG="${LEGACY_BASE}-legacy.${N}"
+            CURRENT="${LEGACY_BASE}-legacy.$(( N - 1 ))"
+          else
+            # Main line: highest plain semver, excluding -legacy pre-releases.
+            CURRENT=$(gh api repos/${{ github.repository }}/tags --paginate --jq '.[].name' \
+              | grep -v -- '-legacy' \
+              | sed -n 's/^v\?\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/p' \
+              | sort -t. -k1,1n -k2,2n -k3,3n \
+              | tail -1)
+            CURRENT="${CURRENT:-0.0.0}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 
-          case "${{ steps.bump.outputs.type }}" in
-            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            patch) PATCH=$((PATCH + 1)) ;;
-          esac
+            case "${{ steps.bump.outputs.type }}" in
+              major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH + 1)) ;;
+            esac
 
-          NEWTAG="${MAJOR}.${MINOR}.${PATCH}"
+            NEWTAG="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
           echo "newtag=${NEWTAG}" >> $GITHUB_OUTPUT
           echo "current=${CURRENT}" >> $GITHUB_OUTPUT
 
@@ -76,7 +95,11 @@ jobs:
           if [[ -n "${{ steps.bump.outputs.type }}" ]]; then
             echo "## Release Preview" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "When this PR is merged, a **${{ steps.bump.outputs.type }}** release will be created:" >> $GITHUB_STEP_SUMMARY
+            if [[ "${{ github.base_ref }}" == "legacy" ]]; then
+              echo "When this PR is merged, a **legacy (ansible-core 2.16)** maintenance release will be created:" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "When this PR is merged, a **${{ steps.bump.outputs.type }}** release will be created:" >> $GITHUB_STEP_SUMMARY
+            fi
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "- Current version: \`v${{ steps.tagged.outputs.current }}\`" >> $GITHUB_STEP_SUMMARY
             echo "- New version: \`v${{ steps.tagged.outputs.newtag }}\`" >> $GITHUB_STEP_SUMMARY
@@ -92,6 +115,8 @@ jobs:
             echo "| \`$LABEL_PATCH\` | Bug fixes, backwards compatible |" >> $GITHUB_STEP_SUMMARY
             echo "| \`$LABEL_MINOR\` | New features, backwards compatible |" >> $GITHUB_STEP_SUMMARY
             echo "| \`$LABEL_MAJOR\` | Breaking changes |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "On the \`legacy\` branch any of these labels triggers a maintenance release tagged \`v${LEGACY_BASE}-legacy.N\` (bump type ignored)." >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Create tag
@@ -111,7 +136,7 @@ jobs:
         run: |
           echo "## Release Created" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Created tag \`v${{ steps.tagged.outputs.newtag }}\` (${{ steps.bump.outputs.type }} bump from v${{ steps.tagged.outputs.current }})" >> $GITHUB_STEP_SUMMARY
+          echo "Created tag \`v${{ steps.tagged.outputs.newtag }}\` (bump from v${{ steps.tagged.outputs.current }})" >> $GITHUB_STEP_SUMMARY
 
       - name: Comment on PR
         if: github.event.pull_request.merged == true && steps.bump.outputs.type != ''

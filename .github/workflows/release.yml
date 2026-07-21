@@ -21,9 +21,11 @@
 #   - schedule event: nightly
 #   - push event:
 #     - main branch: latest
+#     - legacy branch: legacy
 #     - devel branch: devel
 #   - workflow_dispatch:
 #     - main branch: latest
+#     - legacy branch: legacy
 #     - devel branch: devel
 #     - branches with open PR: DEV-PR-<number>
 #     - other branches: DEV-<short-sha>
@@ -44,9 +46,10 @@ name: Build & Release
 on:
   push:
     # run CI build when commits are merged to specified branches
-    # automatically push images: main -> latest tag, devel -> devel tag
+    # automatically push images: main -> latest, legacy -> legacy, devel -> devel
     branches:
       - main
+      - legacy
       - devel
     paths:
       - "**"
@@ -55,6 +58,7 @@ on:
     # run CI build when a pull request is opened or synchronized
     branches:
       - main
+      - legacy
       - devel
     paths:
       - "**"
@@ -100,13 +104,13 @@ jobs:
     runs-on: ubuntu-latest
     name: Release
     # Push images for: releases, scheduled builds, manual workflow_dispatch with push_image=true,
-    # or pushes to main/devel branches
+    # or pushes to main/legacy/devel branches
     if: >-
       ${{
         github.event_name == 'release'
         || github.event_name == 'schedule'
         || github.event.inputs.push_image == 'true'
-        || (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'devel'))
+        || (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'legacy' || github.ref_name == 'devel'))
       }}
     strategy:
       fail-fast: true
@@ -149,6 +153,8 @@ jobs:
             IMAGE_TAG="DEV-PR-${{ github.event.pull_request.number }}"
           elif [[ "${{ github.ref_name }}" == "main" ]]; then
             IMAGE_TAG="latest"
+          elif [[ "${{ github.ref_name }}" == "legacy" ]]; then
+            IMAGE_TAG="legacy"
           elif [[ "${{ github.ref_name }}" == "devel" ]]; then
             IMAGE_TAG="devel"
           else
