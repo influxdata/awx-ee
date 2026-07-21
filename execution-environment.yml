@@ -2,16 +2,17 @@
 version: 3
 images:
   base_image:
-    name: quay.io/centos/centos:stream9
+    name: quay.io/centos/centos:stream10
 dependencies:
   ansible_core:
     # A minimum of 2.15 is required to get ansible-inventory --limit option
-    package_pip: ansible-core==2.16.14
+    package_pip: ansible-core==2.21.2
   ansible_runner:
     package_pip: ansible-runner>=2.4.2
   python_interpreter:
-    package_system: python3.12
-    python_path: "/usr/bin/python3.12"
+    # python3.13 is provided by EPEL (enabled in prepend_base); Stream 10 base repos ship 3.12
+    package_system: python3.13
+    python_path: "/usr/bin/python3.13"
   galaxy: |
     ---
     collections:
@@ -30,7 +31,8 @@ dependencies:
       - name: community.grafana
   system: |
     git-core [platform:rpm]
-    python3.12-devel [platform:rpm compile]
+    python3.13-devel [platform:rpm compile]
+    python3.13-pip [platform:rpm]
     libcurl-devel [platform:rpm compile]
     krb5-devel [platform:rpm compile]
     krb5-workstation [platform:rpm]
@@ -72,9 +74,18 @@ dependencies:
     ara
     mitogen
 additional_build_steps:
+  prepend_base:
+    # Stream 10 base repos cap at python3.12; python3.13 comes from EPEL, which
+    # requires the CRB repo enabled first. This runs at the start of the base stage
+    # so the interpreter + pip + devel are present before ansible-builder's setup and
+    # are inherited by the galaxy/builder/final stages.
+    - RUN dnf install -y dnf-plugins-core
+    - RUN dnf config-manager --set-enabled crb
+    - RUN dnf install -y epel-release
+    - RUN dnf install -y python3.13 python3.13-pip python3.13-devel
   append_base:
     - RUN $PYCMD -m pip install -U pip
-    - RUN alternatives --install /usr/bin/python python /usr/bin/python3.12 312
+    - RUN alternatives --install /usr/bin/python python /usr/bin/python3.13 313
   append_final:
     - COPY --from=quay.io/ansible/receptor:v1.6.3 /usr/bin/receptor /usr/bin/receptor
     - RUN mkdir -p /var/run/receptor

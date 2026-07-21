@@ -3,9 +3,12 @@
 An Execution Environment for AWX.
 
 Main features:
-- CentOS Stream 9
-- Python 3.12
-- Ansible 2.16
+- CentOS Stream 10
+- Python 3.13
+- Ansible 2.21
+
+> An ansible-core **2.16** line is maintained on the [`legacy`](../../tree/legacy)
+> branch (CentOS Stream 9 / Python 3.12), published as the `:legacy` image tag.
 
 ### Collections
 - `amazon.aws`
@@ -62,12 +65,13 @@ Image tags for manual builds:
 | Branch | Tag |
 |--------|-----|
 | `main` | `latest` |
+| `legacy` | `legacy` |
 | `devel` | `devel` |
 | Branch with open PR | `DEV-PR-<number>` |
 | Other branches | `DEV-<commit-sha>` |
 
 ### CI validation
-Pull requests and pushes to `main`/`devel` trigger a CI build (Podman) to validate the image builds successfully, but do not push to the registry.
+Pull requests and pushes to `main`/`legacy`/`devel` trigger a CI build (Podman) to validate the image builds successfully, but do not push to the registry.
 
 ### Configuration
 To use this workflow in your own fork, configure these repository variables/secrets:
