@@ -2,6 +2,10 @@
 
 An Execution Environment for AWX.
 
+> **Legacy line.** This `legacy` branch maintains the ansible-core **2.16** image
+> (CentOS Stream 9 / Python 3.12), published as the `:legacy` tag. The current
+> line (ansible-core 2.21, Stream 10, Python 3.13) lives on `main` as `:latest`.
+
 Main features:
 - CentOS Stream 9
 - Python 3.12
