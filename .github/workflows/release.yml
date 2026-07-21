@@ -20,6 +20,7 @@
 #   - schedule event: nightly
 #   - workflow_dispatch:
 #     - main branch: latest
+#     - legacy branch: legacy
 #     - devel branch: devel
 #     - branches with open PR: DEV-PR-<number>
 #     - other branches: DEV-<short-sha>
@@ -42,6 +43,7 @@ on:
     # run CI build when commits are merged to specified branches
     branches:
       - main
+      - legacy
       - devel
     paths:
       - "**"
@@ -50,6 +52,7 @@ on:
     # run CI build when a pull request is opened or synchronized
     branches:
       - main
+      - legacy
       - devel
     paths:
       - "**"
@@ -137,6 +140,8 @@ jobs:
             IMAGE_TAG="DEV-PR-${{ github.event.pull_request.number }}"
           elif [[ "${{ github.ref_name }}" == "main" ]]; then
             IMAGE_TAG="latest"
+          elif [[ "${{ github.ref_name }}" == "legacy" ]]; then
+            IMAGE_TAG="legacy"
           elif [[ "${{ github.ref_name }}" == "devel" ]]; then
             IMAGE_TAG="devel"
           else
