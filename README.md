@@ -49,6 +49,26 @@ $ ansible-builder build -v3 -t quay.io/influxdb/awx-ee --container-runtime=docke
 
 The GitHub Actions workflow builds and publishes images automatically.
 
+### Releasing
+
+Releases are cut from labeled PRs across two lines:
+
+| Line | Branch | Version scheme | Moving tag |
+|------|--------|----------------|------------|
+| Current | `main` | linear semver (e.g. `v1.3.0`) | `latest` |
+| Legacy (ansible-core 2.16) | `legacy` | `v<base>-legacy.N` (e.g. `v1.2.0-legacy.1`) | `legacy` |
+
+1. **Label the PR** with `release/patch`, `release/minor`, or `release/major` to set the
+   version bump. On `legacy`, any `release/*` label cuts a maintenance release — the bump
+   type is ignored and the `-legacy.N` counter simply increments.
+2. **Merge the PR** — a matching git tag is created automatically. This creates the **tag
+   only**; it does not push an image.
+3. **Publish the image:**
+   - **Versioned** (`:v1.3.0`, `:v1.2.0-legacy.1`): create a GitHub **Release** from the
+     tag — this builds and pushes that version.
+   - **Moving tag** (`:latest`, `:legacy`): run **Build & Release** via *Run workflow* on
+     the branch with *Push image to registry after build* checked.
+
 ### Automatic builds
 - **Releases**: Creating a GitHub release pushes an image tagged with the release name (e.g., `v1.0.0`)
 - **Nightly**: Weekly scheduled builds push a `nightly` tag
