@@ -46,6 +46,7 @@ dependencies:
     git-lfs [platform:rpm]
     sshpass [platform:rpm]
     rsync [platform:rpm]
+    diffutils [platform:rpm]
     epel-release [platform:rpm]
     python-unversioned-command [platform:rpm]
     unzip [platform:rpm]
